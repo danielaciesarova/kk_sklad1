@@ -1,0 +1,162 @@
+unit Unit1;
+
+{$mode objfpc}{$H+}
+
+interface
+
+uses
+  Classes, SysUtils, FileUtil, Forms, Controls, Graphics, Dialogs, StdCtrls,
+  ExtCtrls;
+
+type
+
+  { TForm1 }
+
+  TForm1 = class(TForm)
+    Button1: TButton;
+    Button2: TButton;
+    Edit1: TEdit;
+    Edit2: TEdit;
+    Edit3: TEdit;
+    Label1: TLabel;
+    Label2: TLabel;
+    Label3: TLabel;
+    Label4: TLabel;
+    Label5: TLabel;
+    Label6: TLabel;
+    Memo1: TMemo;
+    Memo2: TMemo;
+    RadioButton1: TRadioButton;
+    RadioButton2: TRadioButton;
+    procedure Button1Click(Sender: TObject);
+    procedure Button2Click(Sender: TObject);
+    procedure Edit1EditingDone(Sender: TObject);
+    procedure Edit2EditingDone(Sender: TObject);
+    procedure Edit3EditingDone(Sender: TObject);
+    procedure FormCreate(Sender: TObject);
+    procedure RadioButton1Change(Sender: TObject);
+  private
+    { private declarations }
+  public
+    { public declarations }
+  end;
+
+var
+  Form1: TForm1;
+
+implementation
+
+{$R *.lfm}
+
+{ TForm1 }
+
+procedure TForm1.FormCreate(Sender: TObject);
+begin
+  Memo1.Clear;
+  Memo2.Clear;
+
+  {doobjednat do kolko kusov?
+  ****na aku operaciu moze fungovat vyhodnocovanie radiobuttonov?
+  (nie: on RB change, timer)****
+  }
+end;
+
+procedure TForm1.RadioButton1Change(Sender: TObject);
+begin
+  //IF RADIOBUTTON1 checked true
+
+  {1a. memo2 append line of ---- "vysledna cena" a cena celej objednavky
+
+  alebo
+
+  1b. label5='cena' enabled true. label5.caption cena celej objednavky
+  label6='1ks' enabled true. caption:"cena"
+
+  2.button2='objednat' enabled true
+
+  3.po stlaceni buttonu sa zmenia stavy financne a prepise sa subor sklad.
+  Label5 a 6 enabled false.
+  Radiobutton1a2 checked false
+  Button2 enabled false.
+
+  (Edit1,Edit2 a Label4 stale enabled false)}
+
+
+  //IF RADIOBUTTON2 checked true
+
+  {(Edit2 a Label4,5,6 a Button2 enabled false)
+
+  1.Edit1='zadajte kod tovaru' enabled true
+  2. po zadani kodu tovaru prebehne kontrola, ci dany produkt existuje
+
+  3.a ak nie, edit1 ostava enabled true
+  a label4='nazov tovaru' dostane hodnotu "produkt neexistuje"
+
+  3.b ak ano, label4='nazov tovaru' caption nazov produktu.
+  Label5='cena' caption cena za kus. label6 caption='1ks' caption "1ks"
+  a vykona sa Edit 2= 'mnozstvo' enable true.
+  Edit1 enabled false.
+
+  4.po zadani mnozstva (on editing done)sa zobrazi v label5 nakupna cena za dane mnozstvo.
+  label6 caption="nks", pricom n=zadane mnozstvo
+  button2=objednat enable true.
+
+  5.po stlaceni buttonu sa zmenia stavy financne a prepise sa subor sklad.
+  Edit2 a Label4,5,6 a Button2 enabled false.
+  Radiobutton1a2 checked false
+  }
+end;
+
+
+
+procedure TForm1.Button1Click(Sender: TObject);
+begin
+  //Refresh
+  {Nacitat subor sklad, nacitat internu databazu tovarov,
+  vycistit memo 1 a 2
+  vypisat do memo1 subor sklad, vo formate: nazov artikla, pocet ks.
+  tovary s poctom ks mensim ako ista hranica automaticky vypisat aj do memo2.
+  aktualne
+
+  +kontrola, nevypisuje do memo1 tovary s poctom ks=<0}
+end;
+
+procedure TForm1.Button2Click(Sender: TObject);
+begin
+ //Objednavka
+  {5.po stlaceni buttonu sa zmenia stavy financne a prepise sa subor sklad.
+  Edit2 a Label4,5,6 enabled false.
+  Radiobutton1a2 checked false
+  Button2 enabled false.}
+end;
+
+procedure TForm1.Edit1EditingDone(Sender: TObject);
+begin
+  //Kontrola existencie artiklu podla kodu
+
+  {najst v nacitanych datach interna databaza zhodu/nie zhodu zadaneho kodu
+  3.a ak nie, edit1 ostava enabled true
+  a label4='nazov tovaru' dostane hodnotu "produkt neexistuje"
+
+  3.b ak ano, label4='nazov tovaru' caption nazov produktu.
+  nacitat zo suboru ceny artiklov.
+  Label5='cena' caption cena za kus. label6 caption='1ks' caption "1ks"
+  a vykona sa Edit 2= 'mnozstvo' enable true.
+  Edit1 enabled false.}
+end;
+
+procedure TForm1.Edit2EditingDone(Sender: TObject);
+begin
+  //Mnozstvo tovaru
+  {po zadani mnozstva (on editing done)sa zobrazi v label5 nakupna cena za dane mnozstvo.
+  label6 caption="nks", pricom n=zadane mnozstvo
+  button2=objednat enable true.  }
+end;
+
+procedure TForm1.Edit3EditingDone(Sender: TObject);
+begin
+  //Vyhladat artikel
+  {vyhladat produkt podla mena alebo kodu, pripisat nazov a pocet ks do mema1.(na koniec za line z ---)}
+end;
+
+end.
