@@ -28,6 +28,8 @@ type
     Edit2: TEdit;
     Edit3: TEdit;
     Edit4: TEdit;
+    Image1: TImage;
+    Image2: TImage;
     Label1: TLabel;
     Label10: TLabel;
     Label2: TLabel;
@@ -36,7 +38,6 @@ type
     Label5: TLabel;
     Label6: TLabel;
     Label7: TLabel;
-    Label8: TLabel;
     Label9: TLabel;
     Memo1: TMemo;
     RadioButton1: TRadioButton;
@@ -54,15 +55,23 @@ type
     procedure CheckBox6Change(Sender: TObject);
     procedure CheckBox7Change(Sender: TObject);
     procedure ComboBox1Change(Sender: TObject);
-    procedure Edit1EditingDone(Sender: TObject);
+    procedure Edit1Change(Sender: TObject);
+    procedure Edit2Change(Sender: TObject);
     procedure Edit3EditingDone(Sender: TObject);
     procedure Edit4EditingDone(Sender: TObject);
+    procedure Image1Click(Sender: TObject);
     procedure RadioButton1Change(Sender: TObject);
     procedure Cistenie ();
+    procedure RadioButton2Change(Sender: TObject);
     procedure Zobraz(kategoria:string);
     procedure Zorad ();
+    procedure ZobrazenieCeny (premienanaCena:integer);
     procedure VyberKategorii();
-    procedure CitanieStatistik ();
+    procedure ZiskajDatum();
+    procedure CitanieStatistik();
+    procedure ID();
+    procedure Locky (nazovSuboru:string);
+    procedure Verzie (nazovSuboru:string);
     procedure DisplayMessageBox(nArtiklov:integer; typObjednavky:string);
     procedure FormCreate(Sender: TObject);
     procedure StringGrid1DblClick(Sender: TObject);
@@ -105,14 +114,17 @@ type
     end;
   type
   recStatistiky =record
-    kod,ks,cenaZaKs:integer;
-    IDtransakcie:string;
+    kod,ks,cenaSpolu:integer;
+    typTransakcie,datum,IDtransakcie:string;
     end;
-const n=9;
-const m=50;
-
+const n=50;
+const m=150;
+//const Path='Z:\INFProjekt2019\TimB\';
+const Path='';
 var
-  sSklad1,sSklad2,sTovar,sCeny,sStatistiky,sKategorie:textfile;
+  sSklad1,sSklad2,sTovar,sCeny,sStatistiky,sKategorie,
+  sSkladLock,sTovarLock,sCenyLock,sStatistikyLock,
+  sSKladVerzia,sTovarVerzia,sCenyVerzia,sStatistikyVerzia:textfile;
   data:array [1..n] of recData;
   zobrazene:array [1..n] of recData;
   nedostatok:array [1..n] of recObjednavka;
@@ -124,7 +136,10 @@ var
   suhlas:boolean;
   nData,nObjednavka,nZobrazene,nNedostatok,NStatistiky,nCeny,nTovar,
   riadokZobrazene,riadokObjednavka,
-  stlpecZobrazene,stlpecObjednavka:integer;
+  stlpecZobrazene,stlpecObjednavka,
+  verziaTovar,verziaSklad,verziaCeny,verziaStatistiky,
+  predverziaTovar,predverziaSklad,predverziaCeny,predverziaStatistiky:integer;
+  datum,c1,IDcislo:string;
   Form1: TForm1;
 
 implementation
@@ -134,29 +149,18 @@ implementation
 { TForm1 }
 
 procedure TForm1.FormCreate(Sender: TObject);
-var i,j,k,poz,pomNData,pomNKategorie,bezNazvu:integer;
-    pom1,pom2:string;
+var i,j,k,poz,pomNData,bezNazvu:integer;
+    pom1,pom2,sub:string;
 begin
-  {StringGrid1.RowCount:=7;
-  StringGrid1.Cells[1,2]:='g';  //stlpec, riadok
-  stringgrid1.deletecol(i);
-  stringgrid1.deleterow(i);
-  stringgrid1.deletecol(i);
-  var
-  I : Integer;
-  Lines : TStringList;
-...
-for I := 0 to Lines.Count - 1 do
-  PopupNotifier1.Text := PopupNotifier1.Text + LineEnding + Lines[I];
-  PopupNotifier1.Visible: Boolean;
+  { ToDo:
+    -design}
 
-  }
-  { TODO -oDanka -cmaslo : Danka: Aha... Zaujimave >:D }
+  randomize;
 
-
-  //1.Cistenie  -Memo,Data,Nedostatok,Zobrazene,Objednavka
+  //1.Cistenie  -Memo,Data,Nedostatok,Zobrazene,Objednavka,Verzie
   Cistenie;
   Memo1.Clear;
+  Memo1.Append('Vitajte v systeme SKLAD obchodneho retazca KinderKaufland.');
   nZobrazene:=0;
   nObjednavka:=0;
 
@@ -174,68 +178,73 @@ for I := 0 to Lines.Count - 1 do
     objednavka[i].cenaspolu:=0;
   end;
 
+  predverziaTovar:=1;
+  predverziaSklad:=1;
+  predverziaCeny:=1;
+  predverziaStatistiky:=1;
 
    //2.Nacitanie dat: subor SKLAD
-
-   AssignFile (sSklad2,'sklad.txt');
-   Reset (sSklad2);
-
-   Readln(sSklad2,pom1);             //citanie riadku pocet poloziek
-   pomNData:=strtoint(pom1);
-
-   i:=0;
-   While not eof(sSklad2) do        //citanie poloziek zo suboru do rekordu
+   sub:='sklad';
+   Verzie(sub);
+   If predverziaSklad<=verziaSklad then
    begin
-     inc(i);
-     Readln(sSklad2,pom1);
-     trim(pom1);
-     poz:=pos(';',pom1);
-     pom2:=copy(pom1,1,poz-1);
-     data[i].kod:=strtoint(pom2);
-     delete(pom1,1,poz);
-     data[i].ks:=strtoint(pom1);
-   end;
-   CloseFile(sSklad2);
+     Locky(sub);
+     AssignFile (sSklad2,Path+'sklad.txt');
+     Reset (sSklad2);
+     Readln(sSklad2,pom1);             //citanie riadku pocet poloziek
+     pomNData:=strtoint(pom1);
+     i:=0;
+     While not eof(sSklad2) do        //citanie poloziek zo suboru do rekordu
+     begin
+       inc(i);
+       Readln(sSklad2,pom1);
+       trim(pom1);
+       poz:=pos(';',pom1);
+       pom2:=copy(pom1,1,poz-1);
+       data[i].kod:=strtoint(pom2);
+       delete(pom1,1,poz);
+       data[i].ks:=strtoint(pom1);
+     end;
+     CloseFile(sSklad2);
+     DeleteFile(Path+'SKLAD_LOCK.txt');
+     predverziaSklad:=verziaSklad;
 
-   If pomNData=i then           //kontrola citania dat
-   begin
-    nData:=pomNData;
-   end
-   else
-    Memo1.Append('problem s nacitanim dat SKLAD');
-
+   //2.1.Kontrola citania dat
+   If pomNData=i then nData:=pomNData else Memo1.Append('problem s nacitanim dat SKLAD');
+  end;
 
    //3.Nacitanie dat: subor TOVAR
    //3.1.Nacitanie TOVAR
-   AssignFile (sTovar,'tovar.txt');
-   Reset (sTovar);
-
-   Readln(sTovar,pom1);             //citanie riadku pocet poloziek
-   pomNData:=strtoint(pom1);
-
-   i:=0;
-   While not eof(sTovar) do        //citanie poloziek zo suboru do rekordu
+   sub:='tovar';
+   Verzie(sub);
+   If predverziaTovar<=verziaTovar then
    begin
-     inc(i);
-     Readln(sTovar,pom1);
-     trim(pom1);
-     poz:=pos(';',pom1);
-     pom2:=copy(pom1,1,poz-1);
-     tovar[i].kod:=strtoint(pom2);
-     delete(pom1,1,poz);
-     tovar[i].nazov:=pom1;
-   end;
-   CloseFile(sTovar);
+     Locky(sub);
+     AssignFile (sTovar,Path+'tovar.txt');
+     Reset (sTovar);
+     Readln(sTovar,pom1);             //citanie riadku pocet poloziek
+     pomNData:=strtoint(pom1);
+     i:=0;
+     While not eof(sTovar) do        //citanie poloziek zo suboru do rekordu
+     begin
+       inc(i);
+       Readln(sTovar,pom1);
+       trim(pom1);
+       poz:=pos(';',pom1);
+       pom2:=copy(pom1,1,poz-1);
+       tovar[i].kod:=strtoint(pom2);
+       delete(pom1,1,poz);
+       tovar[i].nazov:=pom1;
+     end;
+     CloseFile(sTovar);
+     DeleteFile(Path+'TOVAR_LOCK.txt');
+     predverziaTovar:=verziaTovar;
 
-   If (pomNData=i) then           //kontrola citania dat
-   begin
-    nTovar:=i;
-   end
-   else
-     Memo1.Append('problem s nacitanim dat TOVAR');
+   //3.2.Kontrola citania dat
+   If (pomNData=i) then nTovar:=i else Memo1.Append('problem s nacitanim dat TOVAR');
+  end;
 
-
-   //3.2.Priradenie nazvov z TOVAR do rekordu DATA
+   //3.3.Priradenie nazvov z TOVAR do rekordu DATA
    bezNazvu:=0;
    For i:=1 to nData do
    begin
@@ -256,37 +265,42 @@ for I := 0 to Lines.Count - 1 do
 
   //4.Nacitanie dat: subor CENNIK
   //4.1.Nacitanie CENNIK
-  AssignFile (sCeny,'cennik.txt');
-  Reset (sCeny);
+  sub:='cennik';
+   Verzie(sub);
+   If predverziaCeny<=verziaCeny then
+   begin
+    Locky(sub);
+    AssignFile (sCeny,Path+'cennik.txt');
+    Reset (sCeny);
+    Readln(sCeny,pom1);             //citanie riadku pocet poloziek
+    pomNData:=strtoint(pom1);
+    i:=0;
+    While not eof(sCeny) do        //citanie poloziek zo suboru do rekordu
+    begin
+      Readln(sCeny,pom1);
+      trim(pom1);
+      If length(pom1)>3 then
+        begin
+          inc(i);
+          poz:=pos(';',pom1);
+          pom2:=copy(pom1,1,poz-1);
+          ceny[i].kod:=strtoint(pom2);
+          delete(pom1,1,poz);
+          poz:=pos(';',pom1);
+          delete(pom1,1,poz);
+          ceny[i].cenaZaKs:=strtoint(pom1);
+        end;
+    end;
+    CloseFile(sCeny);
+    DeleteFile(Path+'CENNIK_LOCK.txt');
+    predverziaCeny:=verziaCeny;
 
-  Readln(sCeny,pom1);             //citanie riadku pocet poloziek
-  pomNData:=strtoint(pom1);
-
-  i:=0;
-  While not eof(sCeny) do        //citanie poloziek zo suboru do rekordu
-  begin
-    inc(i);
-    Readln(sCeny,pom1);
-    trim(pom1);
-    poz:=pos(';',pom1);
-    pom2:=copy(pom1,1,poz-1);
-    ceny[i].kod:=strtoint(pom2);
-    delete(pom1,1,poz);
-    poz:=pos(';',pom1);
-    delete(pom1,1,poz);
-    ceny[i].cenaZaKs:=strtoint(pom1);
+  //4.2.Kontrola citania dat
+  If (pomNData=i) then nCeny:=i else Memo1.Append('niektore tovary nemaju zadanu CENU');
   end;
-  CloseFile(sCeny);
+  nCeny:=i;
 
-  If (pomNData=i)  then                             //kontrola citania dat
-  begin
-   nCeny:=i;
-  end
-  else
-   Memo1.Append('niektore tovary nemaju zadanu CENU');
-
-
-  //4.2.Priradenie cien z CENY do rekordu DATA
+  //4.3.Priradenie cien z CENY do rekordu DATA
   i:=0;
   Repeat
    inc(i);
@@ -326,21 +340,16 @@ for I := 0 to Lines.Count - 1 do
   //7.1.Nacitanie: subor KATEGORIE
   AssignFile(sKategorie,'kategorie.txt');
   Reset(sKategorie);
+  i:=0;
+  While not eof(sKategorie) do
+    begin
+      inc(i);
+      Readln(sKategorie,kategorie[i]);
+    end;
+  CloseFile (sKategorie);
 
-  Readln(sKategorie,pom1);
-  pomNKategorie:=strtoint(pom1);
-  if pomNKategorie = 4 then
+  If i <> 4 then Memo1.Append('problem s nacitanim suboru KATEGORIE') else
   begin
-    i:=0;
-    While not eof(sKategorie) do
-      begin
-        inc(i);
-        Readln(sKategorie,pom1);
-        poz:=pos(';',pom1);
-        pom2:=copy(pom1,1,poz-1);
-        delete(pom1,1,poz);
-        kategorie[strtoint(pom2)]:=pom1;
-      end;
 
   //7.2.Priradenie kategorii na CheckBoxy
   CheckBox3.Caption:=kategorie[1];
@@ -351,6 +360,8 @@ for I := 0 to Lines.Count - 1 do
 
   //8.Vykreslenie obsahu StringGrid1 AKTUALNY STAV
   VyberKategorii;
+
+  ID;
 end;
 
 procedure TForm1.Cistenie();
@@ -372,6 +383,18 @@ begin
     nedostatok[i].ks:=0;
     nedostatok[i].cenaZaKs:=0;
     nedostatok[i].cenaspolu:=0;
+  end;
+end;
+
+procedure TForm1.RadioButton2Change(Sender: TObject);
+begin
+  If RadioButton2.Checked = true then
+  begin
+   CheckBox1.Enabled:=false;
+   Label2.Enabled:=false;
+   Label6.Enabled:=false;
+   Edit1.Enabled:=false;
+   Edit2.Enabled:=false;
   end;
 end;
 
@@ -492,7 +515,7 @@ begin
   Repeat
    inc(i);
    If zobrazene[riadokZobrazene].kod = objednavka[i].kod then zhoda:=1;
-  until (i>=nObjednavka) or (zhoda=1);
+  until (i>=nObjednavka) or (zhoda>=1);
 
   case zhoda of
     0:
@@ -529,8 +552,10 @@ begin
     begin
         StringGrid2.Cells[1,i]:=objednavka[i].nazov;
         StringGrid2.Cells[2,i]:=inttostr(objednavka[i].ks);
-        StringGrid2.Cells[3,i]:=inttostr(objednavka[i].cenaZaKs);
-        StringGrid2.Cells[4,i]:=inttostr(objednavka[i].cenaSpolu);
+        ZobrazenieCeny(objednavka[i].cenaZaKs);
+        StringGrid2.Cells[3,i]:=c1;
+        ZobrazenieCeny(objednavka[i].cenaSpolu);
+        StringGrid2.Cells[4,i]:=c1;
         StringGrid2.Cells[0,i]:=inttostr(i);
     end;
     Button2.Enabled:=true;
@@ -542,7 +567,7 @@ procedure TForm1.StringGrid1PrepareCanvas(sender: TObject; aCol, aRow: Integer;
 begin
  if gdFixed in aState then exit;
  if (aRow = StringGrid1.Row) then
- StringGrid1.Canvas.Brush.color:=clAqua;
+ StringGrid1.Canvas.Brush.color:=RGBtoColor(60,0,0);
 end;
 
 procedure TForm1.StringGrid1SelectCell(Sender: TObject; aCol, aRow: Integer;
@@ -555,16 +580,22 @@ end;
 
 procedure TForm1.StringGrid2DblClick(Sender: TObject);
 var i:integer;
+
 begin
   //O*D*S*T*R*A*N*E*N*I*E Z O*B*J*E*D*N*A*V*K*Y
   If nObjednavka>0 then
   begin
-    StringGrid2.deleteRow(riadokObjednavka);
-
-    Memo1.Append('uprava mnozstva: '+objednavka[riadokObjednavka].nazov+' ('
+    Memo1.Append('odstranenie z objednavky: '
+    +objednavka[riadokObjednavka].nazov+' ('
     +inttostr(objednavka[riadokObjednavka].kod)+') x '
     +inttostr(objednavka[riadokObjednavka].ks)
-    +' -> '+inttostr(objednavka[riadokObjednavka].ks-1));
+    +' -> '+'0');
+
+    objednavka[nObjednavka+1].kod:=objednavka[n].kod;
+    objednavka[nObjednavka+1].nazov:=objednavka[n].nazov;
+    objednavka[nObjednavka+1].ks:=objednavka[n].ks;
+    objednavka[nObjednavka+1].cenaZaKs:=objednavka[n].cenaZaKs;
+    objednavka[nObjednavka+1].cenaspolu:=objednavka[n].cenaspolu;
 
     For i:=riadokObjednavka to nObjednavka do
     begin
@@ -576,9 +607,19 @@ begin
     end;
     dec(nObjednavka);
 
-    For i:=1 to nObjednavka do
+    If nObjednavka>=0 then
     begin
-     StringGrid2.Cells[0,i]:=inttostr(i);
+    StringGrid2.RowCount:=nObjednavka+1;
+    For i:=1 to nObjednavka do
+      begin
+          StringGrid2.Cells[1,i]:=objednavka[i].nazov;
+          StringGrid2.Cells[2,i]:=inttostr(objednavka[i].ks);
+          ZobrazenieCeny(objednavka[i].cenaZaKs);
+          StringGrid2.Cells[3,i]:=c1;
+          ZobrazenieCeny(objednavka[i].cenaSpolu);
+          StringGrid2.Cells[4,i]:=c1;
+          StringGrid2.Cells[0,i]:=inttostr(i);
+      end;
     end;
   end;
 end;
@@ -591,6 +632,7 @@ begin
  begin
    If stlpecObjednavka=2 then
      begin
+     If StringGrid2.Cells[stlpecObjednavka,riadokObjednavka]='' then StringGrid2.Cells[stlpecObjednavka,riadokObjednavka]:='0';
      pom:=inttostr(objednavka[riadokObjednavka].ks);
      objednavka[riadokObjednavka].ks:=strtoint(StringGrid2.Cells[stlpecObjednavka,riadokObjednavka]);
      objednavka[riadokObjednavka].cenaSpolu:=(objednavka[riadokObjednavka].ks)*
@@ -598,6 +640,21 @@ begin
      Memo1.Append('uprava mnozstva: '+objednavka[riadokObjednavka].nazov+' ('
     +inttostr(objednavka[riadokObjednavka].kod)+') x '
     +pom+' -> '+StringGrid2.Cells[stlpecObjednavka,riadokObjednavka]);
+     end;
+
+     //Kontrola pocet kusov v objednavke=0
+     If objednavka[riadokObjednavka].ks<=0 then
+      begin
+        for i:=riadokObjednavka to nObjednavka do
+        begin
+          objednavka[i].kod:=objednavka[i+1].kod;
+          objednavka[i].nazov:=objednavka[i+1].nazov;
+          objednavka[i].ks:=objednavka[i+1].ks;
+          objednavka[i].cenaZaKs:=objednavka[i+1].cenaZaKs;
+          objednavka[i].cenaspolu:=objednavka[i+1].cenaspolu;
+        end;
+       dec(nObjednavka);
+      end;
 
      //Vykreslenie StringGrid2 OBJEDNAVKA
      StringGrid2.RowCount:=nObjednavka+1;
@@ -605,27 +662,13 @@ begin
       begin
           StringGrid2.Cells[1,i]:=objednavka[i].nazov;
           StringGrid2.Cells[2,i]:=inttostr(objednavka[i].ks);
-          StringGrid2.Cells[3,i]:=inttostr(objednavka[i].cenaZaKs);
-          StringGrid2.Cells[4,i]:=inttostr(objednavka[i].cenaSpolu);
+          ZobrazenieCeny(objednavka[i].cenaZaKs);
+          StringGrid2.Cells[3,i]:=c1;
+          ZobrazenieCeny(objednavka[i].cenaSpolu);
+          StringGrid2.Cells[4,i]:=c1;
           StringGrid2.Cells[0,i]:=inttostr(i);
       end;
-     end;
- end;
-
- //Kontrola pocet kusov v objednavke=0
- If objednavka[riadokObjednavka].ks<=0 then
-  begin
-  StringGrid2.deleteRow(riadokObjednavka);
-    for i:=riadokObjednavka to nObjednavka do
-    begin
-      objednavka[i].kod:=objednavka[i+1].kod;
-      objednavka[i].nazov:=objednavka[i+1].nazov;
-      objednavka[i].ks:=objednavka[i+1].ks;
-      objednavka[i].cenaZaKs:=objednavka[i+1].cenaZaKs;
-      objednavka[i].cenaspolu:=objednavka[i+1].cenaspolu;
-    end;
-   dec(nobjednavka);
-  end;
+   end;
 
 end;
 
@@ -634,7 +677,7 @@ procedure TForm1.StringGrid2PrepareCanvas(sender: TObject; aCol, aRow: Integer;
 begin
  if gdFixed in aState then exit;
  if (aRow = StringGrid2.Row) then
- StringGrid2.Canvas.Brush.color:=clOlive;
+ StringGrid2.Canvas.Brush.color:=RGBtoColor(155,5,30);
 end;
 
 procedure TForm1.StringGrid2SelectCell(Sender: TObject; aCol, aRow: Integer;
@@ -647,7 +690,7 @@ end;
 
 procedure TForm1.Timer1Timer(Sender: TObject);
 var i,j,k,poz,pomNData,zhoda,bezNazvu:integer;
-    pom1,pom2,pomTypObj:string;
+    pom1,pom2,pomTypObj,sub:string;
 begin
   //R*E*F*R*E*S*H
 
@@ -661,7 +704,7 @@ begin
   nNedostatok:=0;
   For i:=1 to nData do
     begin
-    If data[i].ks <= (strtoint(Edit1.text)) then
+    If data[i].ks < (strtoint(Edit1.text)) then
        begin
         inc(nNedostatok);
         nedostatok[nNedostatok].kod:=data[i].kod;
@@ -670,124 +713,183 @@ begin
         nedostatok[nNedostatok].cenaZaKs:=data[i].cenaZaKs;
         nedostatok[nNedostatok].cenaSpolu:=((nedostatok[nNedostatok].ks)*(nedostatok[nNedostatok].cenaZaKs));
 
-
-         Memo1.Append('doobjednavam: '
-        +nedostatok[nNedostatok].nazov+' ('
-        +inttostr(nedostatok[nNedostatok].kod)+') x '+inttostr(data[i].ks)
-        +' -> '+inttostr(data[i].ks+strtoint(Edit2.text)));
-
-        If CheckBox1.Checked = false then inc(data[i].ks,strtoint(Edit2.text));
+        If CheckBox1.Checked = false then
+        begin
+          inc(data[i].ks,strtoint(Edit2.text));
+          Memo1.Append('doobjednal som: '
+          +nedostatok[nNedostatok].nazov+' ('
+          +inttostr(nedostatok[nNedostatok].kod)+') x '+inttostr(data[i].ks)
+          +' -> '+inttostr(data[i].ks+strtoint(Edit2.text)));
         end;
+       end;
     end;
-  Memo1.Append('----------------------------------------------');
 
   //1.2.Nakup
-  If CheckBox1.Checked=true then
+  If nNedostatok>0 then
   begin
-    pomTypObj:='Automatickej objednavky';
-    DisplayMessageBox(nNedostatok,pomTypObj);
-
-    If suhlas = true then
+    If CheckBox1.Checked=true then
     begin
-      CitanieStatistik;
+      RadioButton1.Checked:=false;
+      pomTypObj:='Automatickej objednavky';
+      DisplayMessageBox(nNedostatok,pomTypObj);
 
-      //1.2.1.Zapis do suboru SATISTIKY
-      For i:=1 to nNedostatok do
+      If suhlas = true then
       begin
-        inc(NStatistiky);
-        statistiky[NStatistiky].IDtransakcie:='N'+'12345678';
-        statistiky[NStatistiky].kod:=nedostatok[i].kod;
-        statistiky[NStatistiky].ks:=nedostatok[i].ks;
-        statistiky[NStatistiky].cenaZaKs:=nedostatok[i].cenaZaKs;
+        For i:=1 to nNedostatok do
+            begin
+            j:=0;
+             Repeat
+             inc(j);
+             until (nedostatok[i].kod = data[j].kod) or (j>=nData);
+             If  nedostatok[i].kod = data[j].kod then
+             begin
+               inc(data[j].ks,strtoint(Edit2.text));
+               Memo1.Append('doobjednal som: '
+               +nedostatok[i].nazov+' ('
+               +inttostr(nedostatok[i].kod)+') x '+inttostr(data[j].ks)
+               +' -> '+inttostr(data[j].ks+strtoint(Edit2.text)));
+             end;
+            end;
       end;
+    end;
+  Memo1.Append('----------------------------------------------');
+  RadioButton1.Checked:=true;
+    If ((suhlas = true) and (CheckBox1.Checked=true)) or (CheckBox1.Checked=false) then
+      begin
+        CitanieStatistik;
 
-      AssignFile(sStatistiky,'statistiky.txt');
-      Rewrite(sStatistiky);
-      Writeln(sStatistiky,inttostr(NStatistiky));
-      For i:=1 to NStatistiky do
+        //1.2.1.Zapis do suboru STATISTIKY
+        ID;
+        For i:=1 to nNedostatok do
         begin
-         Writeln(sStatistiky,statistiky[i].IDtransakcie+';'+
-         inttostr(statistiky[i].kod)+';'+inttostr(statistiky[i].ks)+';'
-         +inttostr(statistiky[i].cenaZaKs));
+          inc(NStatistiky);
+          statistiky[NStatistiky].typtransakcie:='N';
+          statistiky[NStatistiky].IDtransakcie:=IDcislo;
+          statistiky[NStatistiky].kod:=nedostatok[i].kod;
+          statistiky[NStatistiky].ks:=nedostatok[i].ks;
+          statistiky[NStatistiky].cenaSpolu:=nedostatok[i].cenaSpolu;
+          ziskajDatum;
+          statistiky[NStatistiky].datum:=datum;
         end;
-      CloseFile(sStatistiky);
 
-      //1.2.2.Zapis do suboru SKLAD
-      AssignFile(sSklad1,'sklad.txt');
-      Rewrite(sSklad1);
-      Writeln(sSklad1,inttostr(nData));
-      For i:=1 to nData do
+        sub:='statistiky';
+        verzie(sub);
+        If predverziaStatistiky=verziaStatistiky then
         begin
-         Writeln(sSklad1,inttostr(data[i].kod)+';'+inttostr(data[i].ks));
+          locky(sub);
+          AssignFile(sStatistiky,Path+'statistiky.txt');
+          Rewrite(sStatistiky);
+          Writeln(sStatistiky,inttostr(NStatistiky));
+          For i:=1 to NStatistiky do
+            begin
+             Writeln(sStatistiky,statistiky[i].typTransakcie+';'+statistiky[i].IDtransakcie
+        +';'+inttostr(statistiky[i].kod)+';'+inttostr(statistiky[i].ks)
+        +';'+inttostr(statistiky[i].cenaSpolu)+';'+statistiky[i].datum);
+            end;
+          CloseFile(sStatistiky);
+          inc(predVerziaStatistiky);
+          AssignFile(sStatistikyVerzia,Path+'statistiky_verzia.txt');
+          Rewrite(sStatistikyVerzia);
+          Writeln(sStatistikyVerzia,inttostr(predverziaStatistiky));
+          CloseFile(sStatistikyVerzia);
+          DeleteFile(Path+'STATISTIKY_LOCK.txt');
         end;
-      CloseFile(sSklad1);
-     end;
+
+        //1.2.2.Zapis do suboru SKLAD
+        sub:='sklad';
+        verzie(sub);
+        If predverziaSklad=verziaSklad then
+        begin
+          locky(sub);
+          AssignFile(sSklad1,Path+'sklad.txt');
+          Rewrite(sSklad1);
+          Writeln(sSklad1,inttostr(nData));
+          For i:=1 to nData do
+            begin
+             Writeln(sSklad1,inttostr(data[i].kod)+';'+inttostr(data[i].ks));
+            end;
+          CloseFile(sSklad1);
+          inc(predVerziaSklad);
+          AssignFile(sSkladVerzia,Path+'sklad_verzia.txt');
+          Rewrite(sSkladVerzia);
+          Writeln(sSkladVerzia,inttostr(predverziaSklad));
+          CloseFile(sSkladVerzia);
+          DeleteFile(Path+'SKLAD_LOCK.txt');
+         end;
+      end;
+    end;
   end;
 
   //2.CISTENIE  -Data,Nedostatok
-  end;
   cistenie;
 
   //3.Nacitanie dat: subor SKLAD
-  AssignFile (sSklad2,'sklad.txt');
-  Reset (sSklad2);
+  sub:='sklad';
+  Verzie(sub);
+  If predverziaSklad<=verziaSklad then
+   begin
+    Locky(sub);
+    AssignFile (sSklad2,Path+'sklad.txt');
+    Reset (sSklad2);
 
-  Readln(sSklad2,pom1);             //citanie riadku pocet poloziek
-  pomNData:=strtoint(pom1);
+    Readln(sSklad2,pom1);             //citanie riadku pocet poloziek
+    pomNData:=strtoint(pom1);
 
-  i:=0;
-  While not eof(sSklad2) do        //citanie poloziek zo suboru do rekordu
-  begin
-    inc(i);
-    Readln(sSklad2,pom1);
-    trim(pom1);
-    poz:=pos(';',pom1);
-    pom2:=copy(pom1,1,poz-1);
-    data[i].kod:=strtoint(pom2);
-    delete(pom1,1,poz);
-    data[i].ks:=strtoint(pom1);
+    i:=0;
+    While not eof(sSklad2) do        //citanie poloziek zo suboru do rekordu
+    begin
+      inc(i);
+      Readln(sSklad2,pom1);
+      trim(pom1);
+      poz:=pos(';',pom1);
+      pom2:=copy(pom1,1,poz-1);
+      data[i].kod:=strtoint(pom2);
+      delete(pom1,1,poz);
+      data[i].ks:=strtoint(pom1);
+    end;
+    CloseFile(sSklad2);
+    DeleteFile(Path+'SKLAD_LOCK.txt');
+    predverziaSklad:=verziaSklad;
+
+    //3.1.Kontrola citania dat
+    If pomNData=i then nData:=pomNData else Memo1.Append('problem s nacitanim dat SKLAD');
   end;
-  CloseFile(sSklad2);
-
-  If pomNData=i then            //kontrola citania dat
-  begin
-   nData:=pomNData;
-  end
-  else
-   Memo1.Append('problem s nacitanim dat SKLAD');
 
 
   //4.Nacitanie dat: subor TOVAR
   //4.1.Nacitanie TOVAR
-   AssignFile (sTovar,'tovar.txt');
-   Reset (sTovar);
-
-   Readln(sTovar,pom1);             //citanie riadku pocet poloziek
-   pomNData:=strtoint(pom1);
-
-   i:=0;
-   While not eof(sTovar) do        //citanie poloziek zo suboru do rekordu
+  sub:='tovar';
+  Verzie(sub);
+  If predverziaTovar<=verziaTovar then
    begin
-     inc(i);
-     Readln(sTovar,pom1);
-     trim(pom1);
-     poz:=pos(';',pom1);
-     pom2:=copy(pom1,1,poz-1);
-     tovar[i].kod:=strtoint(pom2);
-     delete(pom1,1,poz);
-     tovar[i].nazov:=pom1;
+    Locky(sub);
+     AssignFile (sTovar,Path+'tovar.txt');
+     Reset (sTovar);
+
+     Readln(sTovar,pom1);             //citanie riadku pocet poloziek
+     pomNData:=strtoint(pom1);
+
+     i:=0;
+     While not eof(sTovar) do        //citanie poloziek zo suboru do rekordu
+     begin
+       inc(i);
+       Readln(sTovar,pom1);
+       trim(pom1);
+       poz:=pos(';',pom1);
+       pom2:=copy(pom1,1,poz-1);
+       tovar[i].kod:=strtoint(pom2);
+       delete(pom1,1,poz);
+       tovar[i].nazov:=pom1;
+     end;
+     CloseFile(sTovar);
+     DeleteFile(Path+'TOVAR_LOCK.txt');
+     predverziaTovar:=verziaTovar;
+
+   //4.2.Kontrola citania dat
+     If (pomNData=i) then nTovar:=i else Memo1.Append('problem s nacitanim dat TOVAR');
    end;
-   CloseFile(sTovar);
 
-   If (pomNData=i) then           //kontrola citania dat
-   begin
-    nTovar:=i;
-   end
-   else
-     Memo1.Append('problem s nacitanim dat TOVAR');
-
-
-   //4.2.Priradenie nazvov z TOVAR do rekordu DATA
+   //4.3.Priradenie nazvov z TOVAR do rekordu DATA
    bezNazvu:=0;
    For i:=1 to nData do
    begin
@@ -808,36 +910,42 @@ begin
 
   //5.Nacitanie dat: subor CENNIK
   //5.1.Nacitanie CENNIK
-  AssignFile (sCeny,'cennik.txt');
-  Reset (sCeny);
+  sub:='cennik';
+  Verzie(sub);
+  If predverziaCeny<=verziaCeny then
+   begin
+    Locky(sub);
+    AssignFile (sCeny,Path+'cennik.txt');
+    Reset (sCeny);
+    Readln(sCeny,pom1);             //citanie riadku pocet poloziek
+    pomNData:=strtoint(pom1);
+    i:=0;
+    While not eof(sCeny) do        //citanie poloziek zo suboru do rekordu
+    begin
+      Readln(sCeny,pom1);
+      trim(pom1);
+      If length(pom1)>4 then
+      begin
+        inc(i);
+        poz:=pos(';',pom1);
+        pom2:=copy(pom1,1,poz-1);
+        ceny[i].kod:=strtoint(pom2);
+        delete(pom1,1,poz);
+        poz:=pos(';',pom1);
+        delete(pom1,1,poz);
+        ceny[i].cenaZaKs:=strtoint(pom1);
+      end;
+    end;
+    CloseFile(sCeny);
+    DeleteFile(Path+'CENNIK_LOCK.txt');
+    predverziaCeny:=verziaCeny;
 
-  Readln(sCeny,pom1);             //citanie riadku pocet poloziek
-  pomNData:=strtoint(pom1);
-
-  i:=0;
-  While not eof(sCeny) do        //citanie poloziek zo suboru do rekordu
-  begin
-    inc(i);
-    Readln(sCeny,pom1);
-    trim(pom1);
-    poz:=pos(';',pom1);
-    pom2:=copy(pom1,1,poz-1);
-    ceny[i].kod:=strtoint(pom2);
-    delete(pom1,1,poz);
-    poz:=pos(';',pom1);
-    delete(pom1,1,poz);
-    ceny[i].cenaZaKs:=strtoint(pom1);
-  end;
-  CloseFile(sCeny);
-
-  If (pomNData=i)  then         //kontrola citania dat
-  begin
+  //5.2.Kontrola citania dat
+    If (pomNData=i)  then nCeny:=i else Memo1.Append('niektore tovary nemaju zadanu CENU');
+   end;
    nCeny:=i;
-  end
-  else
-   Memo1.Append('niektore tovary nemaju zadanu CENU');
 
-  //5.2.Priradenie cien z CENY do rekordu DATA
+  //5.3.Priradenie cien z CENY do rekordu DATA
   i:=0;
   Repeat
    inc(i);
@@ -898,7 +1006,6 @@ begin
      end;
 
  //7.Vykreslenie obsahu StringGrid1 AKTUALNY STAV
-
    If nZobrazene >0 then
    begin
      StringGrid1.RowCount:=nZobrazene+1;
@@ -912,7 +1019,6 @@ begin
    end;
 
  //8.Vykreslenie StringGrid2 OBJEDNAVKA
-
  If nObjednavka>0 then
   begin
   StringGrid2.RowCount:=nObjednavka+1;
@@ -920,8 +1026,10 @@ begin
     begin
         StringGrid2.Cells[1,i]:=objednavka[i].nazov;
         StringGrid2.Cells[2,i]:=inttostr(objednavka[i].ks);
-        StringGrid2.Cells[3,i]:=inttostr(objednavka[i].cenaZaKs);
-        StringGrid2.Cells[4,i]:=inttostr(objednavka[i].cenaSpolu);
+        ZobrazenieCeny(objednavka[i].cenaZaKs);
+        StringGrid2.Cells[3,i]:=c1;
+        ZobrazenieCeny(objednavka[i].cenaSpolu);
+        StringGrid2.Cells[4,i]:=c1;
         StringGrid2.Cells[0,i]:=inttostr(i);
     end;
   Button2.Enabled:=true;
@@ -930,54 +1038,65 @@ end;
 
 procedure TForm1.CitanieStatistik;
 var i,poz,pomNStatistiky:integer;
-    pom1,pom2:string;
+    pom1,pom2,sub:string;
 begin
  //C*i*t*a*n*i*e subor STATISTIKY
-  AssignFile(sStatistiky,'statistiky.txt');
-  Reset(sStatistiky);
+ sub:='statistiky';
+ Verzie(sub);
+ If predverziaStatistiky<=verziaStatistiky then
+   begin
+    Locky(sub);
+    AssignFile(sStatistiky,Path+'statistiky.txt');
+    Reset(sStatistiky);
 
-  Readln(sStatistiky,pom1);             //citanie riadku pocet poloziek
-  pomNStatistiky:=strtoint(pom1);
+    Readln(sStatistiky,pom1);             //citanie riadku pocet poloziek
+    pomNStatistiky:=strtoint(pom1);
 
-  i:=0;
-  While not eof(sStatistiky) do        //citanie poloziek zo suboru do rekordu
-  begin
-    inc(i);
-    Readln(sStatistiky,pom1);
-    trim(pom1);
+    i:=0;
+    While not eof(sStatistiky) do        //citanie poloziek zo suboru do rekordu
+    begin
+      inc(i);
+      Readln(sStatistiky,pom1);
+      trim(pom1);
 
-    poz:=pos(';',pom1);               //citanie udaju ID transakcie
-    pom2:=copy(pom1,1,poz-1);
-    statistiky[i].IDtransakcie:=pom2;
-    delete(pom1,1,poz);
+      statistiky[i].typTransakcie:=pom1[1];
+      delete(pom1,1,2);
 
-    poz:=pos(';',pom1);               //citanie udaju Kod
-    pom2:=copy(pom1,1,poz-1);
-    statistiky[i].kod:=strtoint(pom2);
-    delete(pom1,1,poz);
+      poz:=pos(';',pom1);               //citanie udaju ID transakcie
+      pom2:=copy(pom1,1,poz-1);
+      statistiky[i].IDtransakcie:=pom2;
+      delete(pom1,1,poz);
 
-    poz:=pos(';',pom1);               //citanie udaju Pocet ks
-    pom2:=copy(pom1,1,poz-1);
-    statistiky[i].ks:=strtoint(pom2);
-    delete(pom1,1,poz);
+      poz:=pos(';',pom1);               //citanie udaju Kod
+      pom2:=copy(pom1,1,poz-1);
+      statistiky[i].kod:=strtoint(pom2);
+      delete(pom1,1,poz);
 
-    statistiky[i].cenaZaKs:=strtoint(pom1); //citanie udaju Cena za kus
+      poz:=pos(';',pom1);               //citanie udaju Pocet ks
+      pom2:=copy(pom1,1,poz-1);
+      statistiky[i].ks:=strtoint(pom2);
+      delete(pom1,1,poz);
 
-   //******** to do(statistiky[i].IDtransakcie));
-  end;
-  CloseFile(sStatistiky);
+      poz:=pos(';',pom1);               //citanie udaju CenaSpolu
+      pom2:=copy(pom1,1,poz-1);
+      statistiky[i].cenaSpolu:=strtoint(pom2);
+      delete(pom1,1,poz);
 
-  If pomNStatistiky = i then            //kontrola citania dat
-  begin
-   NStatistiky:=pomNStatistiky;
-  end
-  else
+      statistiky[i].datum:=pom1;        //citanie udaju Datum
+    end;
+    CloseFile(sStatistiky);
+    DeleteFile(Path+'STATISTIKY_LOCK.txt');
+    predverziaStatistiky:=verziaStatistiky;
+
+   //Kontrola citania dat
+   If pomNStatistiky = i then NStatistiky:=pomNStatistiky else
    Memo1.Append('problem s nacitanim dat STATISTIKY');
+ end;
 end;
 
 procedure TForm1.Button2Click(Sender: TObject);
 var i,j,k,zhoda:integer;
-    pomTypObj:string;
+    pomTypObj,sub:string;
 begin
  //N*A*K*U*P T*O*V*A*R*U
   pomTypObj:= 'Manualnej objednavky';
@@ -985,30 +1104,43 @@ begin
   If suhlas = true then
   begin
     NStatistiky:=0;
-    //If File(sStatistiky) exists then
     CitanieStatistik;
-
-    For i:=1 to nObjednavka do
+  ID;
+  For i:=1 to nObjednavka do
     begin
     inc(NStatistiky);
-    statistiky[NStatistiky].IDtransakcie:='N'+'12345678';
+    statistiky[NStatistiky].typTransakcie:='N';
+    statistiky[NStatistiky].IDtransakcie:=IDcislo;
     statistiky[NStatistiky].kod:=objednavka[i].kod;
     statistiky[NStatistiky].ks:=objednavka[i].ks;
-    statistiky[NStatistiky].cenaZaKs:=objednavka[i].cenaZaKs;
+    statistiky[NStatistiky].cenaSpolu:=objednavka[i].cenaSpolu;
+    ziskajDatum;
+    statistiky[NStatistiky].datum:=datum;
     end;
 
-    AssignFile(sStatistiky,'statistiky.txt');
-    Rewrite(sStatistiky);
-    Writeln(sStatistiky,inttostr(NStatistiky));
-    For i:=1 to NStatistiky do
-      begin
-       Writeln(sStatistiky,statistiky[i].IDtransakcie+';'+
-       inttostr(statistiky[i].kod)+';'+inttostr(statistiky[i].ks)+';'
-       +inttostr(statistiky[i].cenaZaKs));
-      end;
-    CloseFile(sStatistiky);
-
-    //to do:vyries, ak subor statistiky neexistuje
+  //1.Prepisanie suboru STATISTIKY
+    sub:='statistiky';
+    verzie(sub);
+    If predverziaStatistiky=verziaStatistiky then
+    begin
+      locky(sub);
+      AssignFile(sStatistiky,Path+'statistiky.txt');
+      Rewrite(sStatistiky);
+      Writeln(sStatistiky,inttostr(NStatistiky));
+      For i:=1 to NStatistiky do
+        begin
+         Writeln(sStatistiky,statistiky[i].typTransakcie+';'+statistiky[i].IDtransakcie
+      +';'+inttostr(statistiky[i].kod)+';'+inttostr(statistiky[i].ks)
+      +';'+inttostr(statistiky[i].cenaSpolu)+';'+statistiky[i].datum);
+        end;
+      CloseFile(sStatistiky);
+      inc(predVerziaStatistiky);
+      AssignFile(sStatistikyVerzia,Path+'statistiky_verzia.txt');
+      Rewrite(sStatistikyVerzia);
+      Writeln(sStatistikyVerzia,inttostr(predverziaStatistiky));
+      CloseFile(sStatistikyVerzia);
+      DeleteFile(Path+'STATISTIKY_LOCK.txt');
+  end;
 
    //2.Porovnanie objednavky z aktualnou databazou
     For j:=1 to nObjednavka do
@@ -1023,15 +1155,27 @@ begin
     end;
 
     //3.Prepisanie suboru SKLAD
-    AssignFile(sSklad1,'sklad.txt');
-    Rewrite(sSklad1);
-    Writeln(sSklad1,inttostr(nData));
-    For i:=1 to nData do
-      begin
-       Writeln(sSklad1,inttostr(data[i].kod)+';'+inttostr(data[i].ks));
-      end;
-    CloseFile(sSklad1);
+    sub:='sklad';
+    verzie(sub);
+    If predverziaSklad=verziaSklad then
+    begin
+      locky(sub);
+      AssignFile(sSklad1,Path+'sklad.txt');
 
+      Rewrite(sSklad1);
+      Writeln(sSklad1,inttostr(nData));
+      For i:=1 to nData do
+        begin
+         Writeln(sSklad1,inttostr(data[i].kod)+';'+inttostr(data[i].ks));
+        end;
+      CloseFile(sSklad1);
+      inc(predVerziaSklad);
+      AssignFile(sSkladVerzia,Path+'sklad_verzia.txt');
+      Rewrite(sSkladVerzia);
+      Writeln(sSkladVerzia,inttostr(predverziaSklad));
+      CloseFile(sSkladVerzia);
+      DeleteFile(Path+'SKLAD_LOCK.txt');
+    end;
 
     //4.Priradenie dat z DATA do ZOBRAZENE
     For i:=1 to nZobrazene do
@@ -1070,7 +1214,6 @@ begin
        end;
 
     //5.Vykreslenie obsahu StringGrid1 AKTUALNY STAV
-
      If nZobrazene >0 then
      begin
        StringGrid1.RowCount:=nZobrazene+1;
@@ -1114,7 +1257,7 @@ begin
     begin
       zhoda:=0;
       i:=0;
-      Repeat                           //Kontrola, ci uz vybrany artikel je v Objednavke
+      Repeat                   //Kontrola, ci uz vybrany artikel je v Objednavke
        inc(i);
        If zobrazene[k].kod = objednavka[i].kod then zhoda:=1;
       until (i>=nObjednavka) or (zhoda=1);
@@ -1130,7 +1273,7 @@ begin
             (objednavka[nObjednavka+1].ks)*(objednavka[nObjednavka+1].cenaZaKs);
             inc(nObjednavka);
             Memo1.Append('pridanie do objednavky: '
-            +objednavka[nobjednavka].nazov+' ('
+            +objednavka[nObjednavka].nazov+' ('
             +inttostr(objednavka[nObjednavka].kod)+') x'
             +inttostr(objednavka[nObjednavka].ks));
           end;
@@ -1153,14 +1296,14 @@ begin
         begin
             StringGrid2.Cells[1,i]:=objednavka[i].nazov;
             StringGrid2.Cells[2,i]:=inttostr(objednavka[i].ks);
-            StringGrid2.Cells[3,i]:=inttostr(objednavka[i].cenaZaKs);
-            StringGrid2.Cells[4,i]:=inttostr(objednavka[i].cenaSpolu);
+            ZobrazenieCeny(objednavka[i].cenaZaKs);
+            StringGrid2.Cells[3,i]:=c1;
+            ZobrazenieCeny(objednavka[i].cenaSpolu);
+            StringGrid2.Cells[4,i]:=c1;
             StringGrid2.Cells[0,i]:=inttostr(i);
         end;
         Button2.Enabled:=true;
        end;
-
-
   end;
 end;
 
@@ -1172,6 +1315,7 @@ begin
    CheckBox3.Checked:=true;
    CheckBox4.Checked:=true;
    CheckBox5.Checked:=true;
+   CheckBox6.Checked:=true;
    CheckBox7.Checked:=true;
   end;
 
@@ -1198,6 +1342,7 @@ end;
 
 procedure TForm1.CheckBox6Change(Sender: TObject);
 begin
+  If CheckBox6.Checked = false then CheckBox2.Checked:=false;
   VyberKategorii;
 end;
 
@@ -1236,9 +1381,14 @@ begin
   zorad;
 end;
 
-procedure TForm1.Edit1EditingDone(Sender: TObject);
+procedure TForm1.Edit1Change(Sender: TObject);
 begin
+  If Edit1.Text='' then Edit1.Text:='0';
+end;
 
+procedure TForm1.Edit2Change(Sender: TObject);
+begin
+  If Edit2.Text='' then Edit2.Text:='0';
 end;
 
 procedure TForm1.Edit3EditingDone(Sender: TObject);
@@ -1313,6 +1463,31 @@ begin
   If CheckBox6.Checked=true then VyberKategorii;
 end;
 
+procedure TForm1.Image1Click(Sender: TObject);
+var i:integer;
+begin
+ //V*Y*P*R*A*Z*D*N*E*N*I*E K*O*S*I*K*A
+  If nObjednavka>0 then
+  begin
+    nObjednavka:=0;
+    For i:=1 to n do
+    begin
+      objednavka[i].kod:=0;
+      objednavka[i].nazov:='';
+      objednavka[i].ks:=0;
+      objednavka[i].cenaZaKs:=0;
+      objednavka[i].cenaspolu:=0;
+    end;
+    Memo1.Clear;
+    Memo1.Append('vasa objednavka bola zrusena');
+  end;
+
+    //Vykreslenie StringGrid2 OBJEDNAVKA
+  StringGrid2.RowCount:=nObjednavka+1;
+
+  Button2.Enabled:=false;
+end;
+
 procedure TForm1.RadioButton1Change(Sender: TObject);
 begin
  //A*U*T*O*M*A*T*I*C*K*A O*B*J*E*D*N*A*V*K*A
@@ -1354,7 +1529,7 @@ procedure TForm1.VyberKategorii();
 var i,j,zhoda:integer;
 begin
   //Z*O*B*R*A*Z*E*N*I*E podla kategorii
-  //Cistenie rekord ZOBRAZENE
+  //1.Cistenie rekord ZOBRAZENE
   nZobrazene:=0;
   For i:=1 to n do
   begin
@@ -1364,7 +1539,7 @@ begin
     zobrazene[i].cenaZaKs:=0;
   end;
 
-  //Vyhodnotenie jednotlivych kategorii
+  //2.Vyhodnotenie jednotlivych kategorii
   If CheckBox2.Checked = true then            //vsetko zobrazene
    begin
     nZobrazene:=nData;
@@ -1435,10 +1610,140 @@ begin
      end;
   end;
 
-  //Zoradenie a vykreslenie StrinGrid1 AKTUALNY stav
+  //3.Zoradenie a vykreslenie StrinGrid1 AKTUALNY stav
   zorad;
 
 end;
 
-end.
+procedure TForm1.Locky(nazovSuboru:string);
+var  kontrolna:boolean;
+begin
+  kontrolna:=true;
+  While kontrolna = true do
+  begin
+   case nazovSuboru of
+     'tovar': If not FileExists (Path+'TOVAR_LOCK.txt') then
+       begin
+         AssignFile(sTovarLock,Path+'TOVAR_LOCK.txt');
+         Rewrite(sTovarLock);
+         kontrolna:=false;
+         CloseFile(sTovarLock);
+       end;
+     'cennik': If not FileExists (Path+'CENNIK_LOCK.txt') then
+       begin
+         AssignFile(sCenyLock,Path+'CENNIK_LOCK.txt');
+         Rewrite(sCenyLock);
+         kontrolna:=false;
+         CloseFile(sCenyLock);
+       end;
+     'statistiky': If not FileExists (Path+'STATISTIKY_LOCK.txt') then
+       begin
+         AssignFile(sStatistikyLock,Path+'STATISTIKY_LOCK.txt');
+         Rewrite(sStatistikyLock);
+         kontrolna:=false;
+         CloseFile(sStatistikyLock);
+       end;
+      'sklad': If not FileExists (Path+'SKLAD_LOCK.txt') then
+       begin
+         AssignFile(sSkladLock,Path+'SKLAD_LOCK.txt');
+         Rewrite(sSkladLock);
+         kontrolna:=false;
+         CloseFile(sSkladLock);
+       end;
+   end;
+  end;
+end;
 
+procedure TForm1.Verzie(nazovSuboru:string);
+var pom:string;
+begin
+  case nazovSuboru of
+     'tovar':
+       begin
+         AssignFile(sTovarVerzia,Path+'TOVAR_VERZIA.txt');
+         Reset(sTovarVerzia);
+         Readln(sTovarVerzia,pom);
+         verziaTovar:=strtoint(pom);
+         CloseFile(sTovarVerzia);
+       end;
+     'sklad':
+       begin
+         AssignFile(sSKladVerzia,Path+'SKLAD_VERZIA.txt');
+         Reset(sSKladVerzia);
+         Readln(sSKladVerzia,pom);
+         verziaSklad:=strtoint(pom);
+         CloseFile(sSKladVerzia);
+       end;
+     'cennik':
+       begin
+         AssignFile(sCenyVerzia,Path+'CENNIK_VERZIA.txt');
+         Reset(sCenyVerzia);
+         Readln(sCenyVerzia,pom);
+         verziaCeny:=strtoint(pom);
+         CloseFile(sCenyVerzia);
+       end;
+     'statistiky':
+       begin
+         AssignFile(sStatistikyVerzia,Path+'STATISTIKY_VERZIA.txt');
+         Reset(sStatistikyVerzia);
+         Readln(sStatistikyVerzia,pom);
+         verziaStatistiky:=strtoint(pom);
+         CloseFile(sStatistikyVerzia);
+       end;
+  end;
+end;
+
+procedure TForm1.ZobrazenieCeny(premienanaCena:integer);
+var c:string;
+begin
+  c:=inttostr(premienanaCena);
+  case length(c) of
+  0: c1:='0';
+  1: c1:='0.0'+c;
+  2: c1:='0.'+c;
+  3,4,5,6:
+    begin
+    c1:=copy(c,1,(length(c)-2));
+    delete(c,1,(length(c)-2));
+    c1:=c1+'.'+c;
+  end;
+ end;
+end;
+
+procedure TForm1.ZiskajDatum();
+var den,mesiac,rok,pom:string;
+begin
+  pom:=DateTimeToStr(DATE); //31.12.1099
+  den:=copy(pom,1,(pos('.',pom)-1));
+  Delete(pom,1,pos('.',pom));
+  mesiac:=copy(pom,2,pos('.',pom)-1-1);
+  Delete(pom,1,pos('.',pom));
+  rok:=Copy(pom,4,2);
+
+
+  if StrToInt(den) < 10 then den:='0'+den;
+  if StrToInt(mesiac) < 10 then mesiac:='0'+mesiac;
+  if StrToInt(rok) < 10 then rok:='0'+rok;
+  datum:=rok+mesiac+den;
+end;
+
+procedure TForm1.ID();
+var i,j,zhoda,cislo:integer;
+begin
+  Repeat
+   IDcislo:='';
+   For i:=1 to 8 do
+    begin
+     cislo:=random(10);
+     IDcislo:=IDcislo+inttostr(cislo);
+    end;
+    zhoda:=0;
+    j:=0;
+    Repeat
+     inc(j);
+     If Statistiky[j].IDtransakcie = IDcislo then zhoda:=1;
+    until (j>=NStatistiky-1) or (zhoda=1);
+  until (zhoda=0);
+end;
+
+end.

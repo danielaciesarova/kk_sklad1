@@ -1,5 +1,4 @@
-4
-1;pecivo
-2;ovocie
-3;zelenina
-4;ine
+pecivo
+ovocie
+zelenina
+ine
